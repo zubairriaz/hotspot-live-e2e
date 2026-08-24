@@ -4,7 +4,7 @@ on:
   pull_request:
 
 jobs:
-  # 1. warn — hotspot touched → PR comment + warn badge
+  # 1. warn — hotspot touched → warn badge (comment written by distance gate job)
   hotspot-warn:
     name: "warn enforcement"
     runs-on: ubuntu-latest
@@ -22,6 +22,7 @@ jobs:
           hotspot-threshold: "75"
           change-freq-min: "2"
           complexity-min: "1"
+          comment: "false"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Print outputs
         run: |
@@ -47,6 +48,7 @@ jobs:
           hotspot-threshold: "75"
           change-freq-min: "2"
           complexity-min: "1"
+          comment: "false"
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
       - name: Print block outcome
@@ -72,6 +74,7 @@ jobs:
           hotspot-threshold: "75"
           change-freq-min: "2"
           complexity-min: "1"
+          comment: "false"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify info never fails
         run: |
@@ -97,6 +100,7 @@ jobs:
           change-freq-min: "2"
           complexity-min: "1"
           excludes: "dist/**"
+          comment: "false"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Print outputs
         run: |
@@ -141,6 +145,7 @@ jobs:
           change-freq-min: "2"
           complexity-min: "1"
           generate-artifact: "true"
+          comment: "false"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify artifact exists and has hotspots
         run: |
@@ -178,6 +183,7 @@ jobs:
           change-freq-min: "2"
           complexity-min: "1"
           generate-artifact: "false"
+          comment: "false"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify artifact absent
         run: test ! -f "$GITHUB_WORKSPACE/hotspot-report.json" && echo "no artifact OK" || exit 1
@@ -200,6 +206,7 @@ jobs:
           hotspot-threshold: "99"
           change-freq-min: "50"
           complexity-min: "1000"
+          comment: "false"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify gate passed (nothing above floor)
         run: |
@@ -207,7 +214,7 @@ jobs:
           [ "${{ steps.hotspot.outputs.gate-status }}" = "pass" ] || (echo "FAIL: expected pass"; exit 1)
           echo "PASS: block+impossibly-high-floor still passes"
 
-  # 9. distance-max: 0.01 — distance gate fires on concrete files
+  # 9. distance-max: 0.01 — sole comment-posting job; shows A/I/D table in PR
   hotspot-distance-gate:
     name: "distance gate (distanceMax=0.01)"
     runs-on: ubuntu-latest
@@ -221,12 +228,13 @@ jobs:
       - uses: ./
         id: hotspot
         with:
-          enforcement-level: warn
+          enforcement-level: block
           hotspot-threshold: "75"
           change-freq-min: "2"
           complexity-min: "1"
           distance-max: "0.01"
           github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
       - name: Print outputs
         run: |
           echo "gate-status=${{ steps.hotspot.outputs.gate-status }}"
