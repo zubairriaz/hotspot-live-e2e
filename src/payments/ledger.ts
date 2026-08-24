@@ -1,17 +1,4 @@
-export type EntryKind = "charge" | "refund" | "adjustment" | "fee" | "chargeback";
-export type LedgerStatus = "pending" | "settled" | "disputed" | "reversed" | "written-off";
-
-export interface LedgerEntry {
-  id: string;
-  kind: EntryKind;
-  amount: number;
-  currency: string;
-  status: LedgerStatus;
-  createdAt: Date;
-  settledAt?: Date;
-  reference?: string;
-  metadata?: Record<string, unknown>;
-}
+import type { EntryKind, LedgerEntry } from "./ledger-types";
 
 export class LedgerService {
   private entries: LedgerEntry[] = [];
@@ -132,6 +119,16 @@ export class LedgerService {
       count++;
     }
     return count;
+  }
+
+  export_csv(currency: string): string {
+    const rows = ["id,kind,amount,currency,status,createdAt,settledAt"];
+    for (const e of this.entries) {
+      if (e.currency !== currency) continue;
+      const settled = e.settledAt ? e.settledAt.toISOString() : "";
+      rows.push([e.id, e.kind, e.amount, e.currency, e.status, e.createdAt.toISOString(), settled].join(","));
+    }
+    return rows.join("\n");
   }
 
   reconcile(expected: number, currency: string): { matched: boolean; diff: number; entries: LedgerEntry[] } {
