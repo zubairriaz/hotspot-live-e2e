@@ -1,1 +1,1 @@
-﻿export function log(m: string) { console.log(m); }
+﻿export function log(m: string) { process.stdout.write(m + '\n'); }
