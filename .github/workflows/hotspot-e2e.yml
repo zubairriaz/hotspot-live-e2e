@@ -214,7 +214,7 @@ jobs:
           [ "${{ steps.hotspot.outputs.gate-status }}" = "pass" ] || (echo "FAIL: expected pass"; exit 1)
           echo "PASS: block+impossibly-high-floor still passes"
 
-  # 9. distance-max: 0.01 — sole comment-posting job; shows A/I/D table in PR
+  # 9. distance-max: 0.01 — verifies distance gate fires; continue-on-error kept for e2e test integrity
   hotspot-distance-gate:
     name: "distance gate (distanceMax=0.01)"
     runs-on: ubuntu-latest
@@ -233,9 +233,30 @@ jobs:
           change-freq-min: "2"
           complexity-min: "1"
           distance-max: "0.01"
+          comment: "false"
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
       - name: Print outputs
         run: |
           echo "gate-status=${{ steps.hotspot.outputs.gate-status }}"
+
+  # 10. real gate — the configuration a real repo would use; fails the check and posts
+  #     inline resolvable comments when hotspots are touched
+  hotspot-gate:
+    name: "hotspot gate"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./
+        with:
+          enforcement-level: block
+          hotspot-threshold: "75"
+          change-freq-min: "2"
+          complexity-min: "1"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
