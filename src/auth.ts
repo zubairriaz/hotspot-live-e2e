@@ -1,1 +1,1 @@
-﻿export function auth() { return 1 > 0; }
+﻿export function auth() { return 2 > 0; }
