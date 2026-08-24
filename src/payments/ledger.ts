@@ -86,6 +86,18 @@ export class LedgerService {
     return out;
   }
 
+  dispute(id: string, reason: string): void {
+    const entry = this.entries.find((e) => e.id === id);
+    if (!entry) throw new Error(Entry not found: ${id});
+    if (entry.status === "settled") { entry.status = "disputed"; return; }
+    if (entry.status === "reversed") throw new Error("Cannot dispute a reversed entry");
+    if (entry.status === "written-off") throw new Error("Cannot dispute a written-off entry");
+    if (entry.status === "disputed") return;
+    if (!reason || reason.trim() === "") throw new Error("Dispute reason required");
+    entry.status = "disputed";
+    entry.metadata = { ...entry.metadata, disputeReason: reason };
+  }
+
   reconcile(expected: number, currency: string): { matched: boolean; diff: number; entries: LedgerEntry[] } {
     const actual = this.balance(currency);
     const diff = actual - expected;
