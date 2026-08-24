@@ -15,13 +15,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: ./
         id: hotspot
         with:
           enforcement-level: warn
           hotspot-threshold: "75"
           change-freq-min: "2"
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Print outputs
+        run: |
+          echo "gate-status=${{ steps.hotspot.outputs.gate-status }}"
+          echo "hotspot-count=${{ steps.hotspot.outputs.hotspot-count }}"
+          echo "touched-hotspot-count=${{ steps.hotspot.outputs.touched-hotspot-count }}"
 
   # 2. block enforcement — should fail CI when hotspot touched
   hotspot-block:
@@ -34,14 +39,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: ./
         id: hotspot
         with:
           enforcement-level: block
           hotspot-threshold: "75"
           change-freq-min: "2"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true   # so the rest of the suite still runs
+        continue-on-error: true
+      - name: Verify block outcome
+        run: |
+          echo "gate-status=${{ steps.hotspot.outputs.gate-status }}"
+          [ "${{ steps.hotspot.outputs.gate-status }}" = "fail" ] && echo "PASS: gate failed as expected on hotspot" || echo "UNEXPECTED: gate should have failed"
 
   # 3. info enforcement — reports to summary only, no PR comment, never fails
   hotspot-info:
@@ -54,12 +63,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: ./
+        id: hotspot
         with:
           enforcement-level: info
           hotspot-threshold: "75"
           change-freq-min: "2"
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify info never fails
+        run: |
+          echo "gate-status=${{ steps.hotspot.outputs.gate-status }}"
+          [ "${{ steps.hotspot.outputs.gate-status }}" != "fail" ] && echo "PASS: info never fails CI" || (echo "FAIL: info should not fail CI"; exit 1)
 
   # 4. excludes — dist/** should be invisible to the engine
   hotspot-excludes:
@@ -72,7 +86,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: ./
+        id: hotspot
         with:
           enforcement-level: warn
           hotspot-threshold: "75"
@@ -91,7 +106,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: ./
         with:
           enforcement-level: warn
           hotspot-threshold: "75"
@@ -110,7 +125,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: ./
         with:
           enforcement-level: warn
           hotspot-threshold: "75"
@@ -135,7 +150,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: ./
         with:
           enforcement-level: warn
           hotspot-threshold: "75"
@@ -145,7 +160,7 @@ jobs:
       - name: Verify artifact absent
         run: test ! -f "$GITHUB_WORKSPACE/hotspot-report.json" && echo "no artifact OK" || exit 1
 
-  # 8. high threshold (99) — no hotspots should surface in a small repo
+  # 8. high threshold + high freq floor — nothing surfaces → gate passes even on block
   hotspot-high-threshold:
     name: "threshold=99 (nothing surfaces)"
     runs-on: ubuntu-latest
@@ -156,19 +171,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: ./
         id: hotspot
         with:
           enforcement-level: block
           hotspot-threshold: "99"
           change-freq-min: "50"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Verify gate passed (no hotspots above floor)
+      - name: Verify gate passed (nothing above floor)
         run: |
           echo "gate-status=${{ steps.hotspot.outputs.gate-status }}"
-          [ "${{ steps.hotspot.outputs.gate-status }}" = "pass" ] || exit 1
+          [ "${{ steps.hotspot.outputs.gate-status }}" = "pass" ] || (echo "FAIL: expected pass with impossibly high floor"; exit 1)
 
-  # 9. distance-max: 0.01 — forces a distance violation on any concrete-stable file
+  # 9. distance-max: 0.01 — distance gate fires on concrete-stable files
   hotspot-distance-gate:
     name: "distance gate (distanceMax=0.01)"
     runs-on: ubuntu-latest
@@ -179,7 +194,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: ./
         with:
           enforcement-level: warn
           hotspot-threshold: "75"
