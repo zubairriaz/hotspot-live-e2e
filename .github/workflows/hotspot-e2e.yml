@@ -1,0 +1,188 @@
+﻿name: Hotspot E2E
+
+on:
+  pull_request:
+
+jobs:
+  # 1. Default warn — hotspot touched → PR comment + warn badge
+  hotspot-warn:
+    name: "warn enforcement"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: zubairriaz/hotspot-tool@main
+        id: hotspot
+        with:
+          enforcement-level: warn
+          hotspot-threshold: "75"
+          change-freq-min: "2"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # 2. block enforcement — should fail CI when hotspot touched
+  hotspot-block:
+    name: "block enforcement"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: zubairriaz/hotspot-tool@main
+        id: hotspot
+        with:
+          enforcement-level: block
+          hotspot-threshold: "75"
+          change-freq-min: "2"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true   # so the rest of the suite still runs
+
+  # 3. info enforcement — reports to summary only, no PR comment, never fails
+  hotspot-info:
+    name: "info enforcement (no comment)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: zubairriaz/hotspot-tool@main
+        with:
+          enforcement-level: info
+          hotspot-threshold: "75"
+          change-freq-min: "2"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # 4. excludes — dist/** should be invisible to the engine
+  hotspot-excludes:
+    name: "dist/** excluded"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: zubairriaz/hotspot-tool@main
+        with:
+          enforcement-level: warn
+          hotspot-threshold: "75"
+          change-freq-min: "2"
+          excludes: "dist/**"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # 5. comment: false — no PR comment even on warn
+  hotspot-no-comment:
+    name: "comment disabled"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: zubairriaz/hotspot-tool@main
+        with:
+          enforcement-level: warn
+          hotspot-threshold: "75"
+          change-freq-min: "2"
+          comment: "false"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # 6. generate-artifact: true — hotspot-report.json must exist
+  hotspot-artifact:
+    name: "JSON artifact"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: zubairriaz/hotspot-tool@main
+        with:
+          enforcement-level: warn
+          hotspot-threshold: "75"
+          change-freq-min: "2"
+          generate-artifact: "true"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify artifact exists
+        run: test -f "$GITHUB_WORKSPACE/hotspot-report.json" && echo "artifact OK" || exit 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hotspot-report
+          path: hotspot-report.json
+
+  # 7. generate-artifact: false — no artifact written
+  hotspot-no-artifact:
+    name: "no artifact"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: zubairriaz/hotspot-tool@main
+        with:
+          enforcement-level: warn
+          hotspot-threshold: "75"
+          change-freq-min: "2"
+          generate-artifact: "false"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify artifact absent
+        run: test ! -f "$GITHUB_WORKSPACE/hotspot-report.json" && echo "no artifact OK" || exit 1
+
+  # 8. high threshold (99) — no hotspots should surface in a small repo
+  hotspot-high-threshold:
+    name: "threshold=99 (nothing surfaces)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: zubairriaz/hotspot-tool@main
+        id: hotspot
+        with:
+          enforcement-level: block
+          hotspot-threshold: "99"
+          change-freq-min: "50"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify gate passed (no hotspots above floor)
+        run: |
+          echo "gate-status=${{ steps.hotspot.outputs.gate-status }}"
+          [ "${{ steps.hotspot.outputs.gate-status }}" = "pass" ] || exit 1
+
+  # 9. distance-max: 0.01 — forces a distance violation on any concrete-stable file
+  hotspot-distance-gate:
+    name: "distance gate (distanceMax=0.01)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: zubairriaz/hotspot-tool@main
+        with:
+          enforcement-level: warn
+          hotspot-threshold: "75"
+          change-freq-min: "2"
+          distance-max: "0.01"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
