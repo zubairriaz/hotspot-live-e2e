@@ -4,7 +4,7 @@ on:
   pull_request:
 
 jobs:
-  # 1. Default warn — hotspot touched → PR comment + warn badge
+  # 1. warn — hotspot touched → PR comment + warn badge
   hotspot-warn:
     name: "warn enforcement"
     runs-on: ubuntu-latest
@@ -21,6 +21,7 @@ jobs:
           enforcement-level: warn
           hotspot-threshold: "75"
           change-freq-min: "2"
+          complexity-min: "1"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Print outputs
         run: |
@@ -28,7 +29,7 @@ jobs:
           echo "hotspot-count=${{ steps.hotspot.outputs.hotspot-count }}"
           echo "touched-hotspot-count=${{ steps.hotspot.outputs.touched-hotspot-count }}"
 
-  # 2. block enforcement — should fail CI when hotspot touched
+  # 2. block — should fail CI when hotspot touched
   hotspot-block:
     name: "block enforcement"
     runs-on: ubuntu-latest
@@ -45,16 +46,17 @@ jobs:
           enforcement-level: block
           hotspot-threshold: "75"
           change-freq-min: "2"
+          complexity-min: "1"
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
-      - name: Verify block outcome
+      - name: Verify block outcome (gate-status must be fail)
         run: |
           echo "gate-status=${{ steps.hotspot.outputs.gate-status }}"
-          [ "${{ steps.hotspot.outputs.gate-status }}" = "fail" ] && echo "PASS: gate failed as expected on hotspot" || echo "UNEXPECTED: gate should have failed"
+          [ "${{ steps.hotspot.outputs.gate-status }}" = "fail" ] && echo "PASS: gate correctly failed" || (echo "UNEXPECTED: expected fail, got ${{ steps.hotspot.outputs.gate-status }}"; exit 1)
 
-  # 3. info enforcement — reports to summary only, no PR comment, never fails
+  # 3. info — no PR comment, never fails CI
   hotspot-info:
-    name: "info enforcement (no comment)"
+    name: "info enforcement (no PR comment)"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -69,13 +71,14 @@ jobs:
           enforcement-level: info
           hotspot-threshold: "75"
           change-freq-min: "2"
+          complexity-min: "1"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify info never fails
         run: |
           echo "gate-status=${{ steps.hotspot.outputs.gate-status }}"
-          [ "${{ steps.hotspot.outputs.gate-status }}" != "fail" ] && echo "PASS: info never fails CI" || (echo "FAIL: info should not fail CI"; exit 1)
+          [ "${{ steps.hotspot.outputs.gate-status }}" != "fail" ] && echo "PASS: info never fails CI" || (echo "FAIL"; exit 1)
 
-  # 4. excludes — dist/** should be invisible to the engine
+  # 4. excludes — dist/** invisible to engine
   hotspot-excludes:
     name: "dist/** excluded"
     runs-on: ubuntu-latest
@@ -92,10 +95,15 @@ jobs:
           enforcement-level: warn
           hotspot-threshold: "75"
           change-freq-min: "2"
+          complexity-min: "1"
           excludes: "dist/**"
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Print outputs
+        run: |
+          echo "gate-status=${{ steps.hotspot.outputs.gate-status }}"
+          echo "hotspot-count=${{ steps.hotspot.outputs.hotspot-count }}"
 
-  # 5. comment: false — no PR comment even on warn
+  # 5. comment: false — no PR comment
   hotspot-no-comment:
     name: "comment disabled"
     runs-on: ubuntu-latest
@@ -111,10 +119,11 @@ jobs:
           enforcement-level: warn
           hotspot-threshold: "75"
           change-freq-min: "2"
+          complexity-min: "1"
           comment: "false"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  # 6. generate-artifact: true — hotspot-report.json must exist
+  # 6. generate-artifact: true
   hotspot-artifact:
     name: "JSON artifact"
     runs-on: ubuntu-latest
@@ -130,16 +139,28 @@ jobs:
           enforcement-level: warn
           hotspot-threshold: "75"
           change-freq-min: "2"
+          complexity-min: "1"
           generate-artifact: "true"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Verify artifact exists
-        run: test -f "$GITHUB_WORKSPACE/hotspot-report.json" && echo "artifact OK" || exit 1
+      - name: Verify artifact exists and has hotspots
+        run: |
+          test -f "$GITHUB_WORKSPACE/hotspot-report.json" && echo "artifact OK"
+          cat "$GITHUB_WORKSPACE/hotspot-report.json" | python3 -c "
+          import json,sys
+          r=json.load(sys.stdin)
+          print('gateStatus:', r['gateStatus'])
+          print('hotspots:', len(r['hotspots']))
+          print('touchedHotspots:', r['touchedHotspots'])
+          assert r['gateStatus'] in ('pass','warn','fail'), 'bad gateStatus'
+          assert isinstance(r['hotspots'], list), 'hotspots must be list'
+          print('PASS: artifact shape valid')
+          "
       - uses: actions/upload-artifact@v4
         with:
           name: hotspot-report
           path: hotspot-report.json
 
-  # 7. generate-artifact: false — no artifact written
+  # 7. generate-artifact: false — no artifact
   hotspot-no-artifact:
     name: "no artifact"
     runs-on: ubuntu-latest
@@ -155,14 +176,15 @@ jobs:
           enforcement-level: warn
           hotspot-threshold: "75"
           change-freq-min: "2"
+          complexity-min: "1"
           generate-artifact: "false"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify artifact absent
         run: test ! -f "$GITHUB_WORKSPACE/hotspot-report.json" && echo "no artifact OK" || exit 1
 
-  # 8. high threshold + high freq floor — nothing surfaces → gate passes even on block
+  # 8. impossibly high floor — gate must pass even on block
   hotspot-high-threshold:
-    name: "threshold=99 (nothing surfaces)"
+    name: "threshold=99 floor=50 (nothing surfaces)"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -177,13 +199,15 @@ jobs:
           enforcement-level: block
           hotspot-threshold: "99"
           change-freq-min: "50"
+          complexity-min: "1000"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify gate passed (nothing above floor)
         run: |
           echo "gate-status=${{ steps.hotspot.outputs.gate-status }}"
-          [ "${{ steps.hotspot.outputs.gate-status }}" = "pass" ] || (echo "FAIL: expected pass with impossibly high floor"; exit 1)
+          [ "${{ steps.hotspot.outputs.gate-status }}" = "pass" ] || (echo "FAIL: expected pass"; exit 1)
+          echo "PASS: block+impossibly-high-floor still passes"
 
-  # 9. distance-max: 0.01 — distance gate fires on concrete-stable files
+  # 9. distance-max: 0.01 — distance gate fires on concrete files
   hotspot-distance-gate:
     name: "distance gate (distanceMax=0.01)"
     runs-on: ubuntu-latest
@@ -195,9 +219,14 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./
+        id: hotspot
         with:
           enforcement-level: warn
           hotspot-threshold: "75"
           change-freq-min: "2"
+          complexity-min: "1"
           distance-max: "0.01"
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Print outputs
+        run: |
+          echo "gate-status=${{ steps.hotspot.outputs.gate-status }}"
