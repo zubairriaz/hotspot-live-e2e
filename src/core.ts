@@ -1,1 +1,1 @@
-﻿export function core() { return 'pr-1-hotspot-touched'; }
+﻿export function core() { return 'pr-1-retrigger'; }
