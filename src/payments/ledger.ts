@@ -121,6 +121,19 @@ export class LedgerService {
     return { current, thirtyDay, sixtyDay, ninetyPlus };
   }
 
+  settleAll(currency: string): number {
+    let count = 0;
+    for (const e of this.entries) {
+      if (e.currency !== currency) continue;
+      if (e.status !== "pending") continue;
+      if (e.kind === "chargeback" || e.kind === "adjustment") continue;
+      e.status = "settled";
+      e.settledAt = new Date();
+      count++;
+    }
+    return count;
+  }
+
   reconcile(expected: number, currency: string): { matched: boolean; diff: number; entries: LedgerEntry[] } {
     const actual = this.balance(currency);
     const diff = actual - expected;
