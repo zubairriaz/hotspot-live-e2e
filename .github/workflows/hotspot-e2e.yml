@@ -258,5 +258,6 @@ jobs:
           change-freq-min: "2"
           complexity-min: "1"
           distance-max: "0.3"
+          module-definition: "file"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
