@@ -1,1 +1,1 @@
-﻿export function core() { return -3; }
+﻿export function core() { return 'pr-1-hotspot-touched'; }
