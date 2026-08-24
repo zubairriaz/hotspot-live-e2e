@@ -98,6 +98,29 @@ export class LedgerService {
     entry.metadata = { ...entry.metadata, disputeReason: reason };
   }
 
+  writeOff(id: string): void {
+    const entry = this.entries.find((e) => e.id === id);
+    if (!entry) throw new Error(Entry not found: ${id});
+    if (entry.status === "written-off") return;
+    if (entry.status === "reversed") throw new Error("Cannot write off a reversed entry");
+    if (entry.status === "settled") throw new Error("Cannot write off a settled entry");
+    entry.status = "written-off";
+  }
+
+  aging(currency: string, asOf = new Date()): { current: number; thirtyDay: number; sixtyDay: number; ninetyPlus: number } {
+    let current = 0; let thirtyDay = 0; let sixtyDay = 0; let ninetyPlus = 0;
+    for (const e of this.entries) {
+      if (e.currency !== currency) continue;
+      if (e.status !== "pending") continue;
+      const ageDays = Math.floor((asOf.getTime() - e.createdAt.getTime()) / 86_400_000);
+      if (ageDays <= 30) current += e.amount;
+      else if (ageDays <= 60) thirtyDay += e.amount;
+      else if (ageDays <= 90) sixtyDay += e.amount;
+      else ninetyPlus += e.amount;
+    }
+    return { current, thirtyDay, sixtyDay, ninetyPlus };
+  }
+
   reconcile(expected: number, currency: string): { matched: boolean; diff: number; entries: LedgerEntry[] } {
     const actual = this.balance(currency);
     const diff = actual - expected;
