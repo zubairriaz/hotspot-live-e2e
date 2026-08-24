@@ -1,1 +1,1 @@
-﻿export type ID = string; export type Name = string;
+﻿export type ID = string; export type Name = string; // retrigger
