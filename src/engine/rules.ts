@@ -14,6 +14,7 @@ export class Rule {
     if (this.name === "high-value") return amount > 10_000;
     if (this.name === "fx") return currency !== "USD";
     if (this.name === "micro") return amount < 1;
+    if (this.name === "round-number") return amount % 1000 === 0;
     return false;
   }
 }
