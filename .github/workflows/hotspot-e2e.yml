@@ -2,6 +2,10 @@
 
 on:
   pull_request:
+    # labeled/unlabeled are NOT in the default set. Without them, adding the
+    # hotspot-acknowledge label does not re-run the gate and the red check
+    # never clears.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 jobs:
   # 1. warn — hotspot touched → warn badge (comment written by distance gate job)
