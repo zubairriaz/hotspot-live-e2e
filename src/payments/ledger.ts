@@ -88,7 +88,7 @@ export class LedgerService {
 
   dispute(id: string, reason: string): void {
     const entry = this.entries.find((e) => e.id === id);
-    if (!entry) throw new Error(Entry not found: ${id});
+    if (!entry) throw new Error(`Entry not found: ${id}`);
     if (entry.status === "settled") { entry.status = "disputed"; return; }
     if (entry.status === "reversed") throw new Error("Cannot dispute a reversed entry");
     if (entry.status === "written-off") throw new Error("Cannot dispute a written-off entry");
@@ -100,7 +100,7 @@ export class LedgerService {
 
   writeOff(id: string): void {
     const entry = this.entries.find((e) => e.id === id);
-    if (!entry) throw new Error(Entry not found: ${id});
+    if (!entry) throw new Error(`Entry not found: ${id}`);
     if (entry.status === "written-off") return;
     if (entry.status === "reversed") throw new Error("Cannot write off a reversed entry");
     if (entry.status === "settled") throw new Error("Cannot write off a settled entry");

@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: zubairriaz/hotspot-tool@v1
         id: hotspot
         with:
           enforcement-level: warn
@@ -41,7 +41,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: zubairriaz/hotspot-tool@v1
         id: hotspot
         with:
           enforcement-level: block
@@ -67,7 +67,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: zubairriaz/hotspot-tool@v1
         id: hotspot
         with:
           enforcement-level: info
@@ -92,7 +92,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: zubairriaz/hotspot-tool@v1
         id: hotspot
         with:
           enforcement-level: warn
@@ -118,7 +118,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: zubairriaz/hotspot-tool@v1
         with:
           enforcement-level: warn
           hotspot-threshold: "75"
@@ -138,7 +138,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: zubairriaz/hotspot-tool@v1
         with:
           enforcement-level: warn
           hotspot-threshold: "75"
@@ -176,7 +176,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: zubairriaz/hotspot-tool@v1
         with:
           enforcement-level: warn
           hotspot-threshold: "75"
@@ -199,7 +199,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: zubairriaz/hotspot-tool@v1
         id: hotspot
         with:
           enforcement-level: block
@@ -225,7 +225,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: zubairriaz/hotspot-tool@v1
         id: hotspot
         with:
           enforcement-level: block
@@ -240,7 +240,10 @@ jobs:
         run: |
           echo "gate-status=${{ steps.hotspot.outputs.gate-status }}"
 
-  # 10. real gate — fails the CI check and posts inline resolvable comments per file
+  # 10. real gate — fails the CI check and posts inline resolvable comments per file.
+  #     Deliberately omits module-definition so this exercises the DEFAULT
+  #     (directory), which is what most users will actually run.
+  #     Also verifies the hotspot-acknowledge label downgrades block -> warn.
   hotspot-gate:
     name: "hotspot gate"
     runs-on: ubuntu-latest
@@ -251,13 +254,31 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: zubairriaz/hotspot-tool@main
+      - uses: zubairriaz/hotspot-tool@v1
+        id: hotspot
         with:
           enforcement-level: block
           hotspot-threshold: "75"
           change-freq-min: "2"
           complexity-min: "1"
           distance-max: "0.3"
-          module-definition: "file"
           github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+      - name: Assert acknowledge label downgrades block to warn
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          STATUS: ${{ steps.hotspot.outputs.gate-status }}
+        run: |
+          echo "labels=$LABELS"
+          echo "gate-status=$STATUS"
+          case ",$LABELS," in
+            *,hotspot-acknowledge,*)
+              [ "$STATUS" != "fail" ] \
+                && echo "PASS: label present, gate downgraded to '$STATUS'" \
+                || { echo "FAIL: label present but gate still failed"; exit 1; } ;;
+            *)
+              [ "$STATUS" = "fail" ] \
+                && echo "PASS: no label, gate failed as expected" \
+                || { echo "FAIL: expected fail without label, got '$STATUS'"; exit 1; } ;;
+          esac
 
