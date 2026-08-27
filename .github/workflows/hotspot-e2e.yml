@@ -7,6 +7,13 @@ on:
     # never clears.
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
+# Overlapping runs race on the delete-then-post comment sequence and leave
+# duplicates. Verified live on PR #7: a push and a label change 2s apart
+# produced 4 comments on a 3-file PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   # 1. warn — hotspot touched → warn badge (comment written by distance gate job)
   hotspot-warn:
