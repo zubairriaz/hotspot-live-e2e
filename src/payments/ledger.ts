@@ -17,6 +17,7 @@ export class LedgerService {
   private entries: LedgerEntry[] = [];
   private readonly maxEntries = 10_000;
   private readonly currencies = ["USD", "EUR", "GBP"];
+  private readonly roundingMode = "half-up";
 
   record(entry: LedgerEntry): void {
     if (!entry.id || entry.id.trim() === "") {
